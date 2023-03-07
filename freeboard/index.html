@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>freeboard</title>
+
+	<meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="viewport" content = "width = device-width, initial-scale = 1, user-scalable = no" />
+    <link href="css/freeboard.min.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@700&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="js/variableTest.js"></script>
+    <script src="js/freeboard.thirdparty.min.js"></script>
+    <script src="scriptForToken.js"></script>
+    <script type="text/javascript">
+        head.js("js/freeboard_plugins.min.js",
+        "plugins/cyblion/browsermqtt.js",
+        "plugins/cyblion/cyblion.mqtt.js",
+        "plugins/cyblion/cyblion.datasource.js",
+            "plugins/cyblion/cyblion.decryptor.js",
+            "plugins/thirdparty/apexcharts_linecharts.js",
+        
+        // *** Load more plugins here ***
+        function(){
+            $(function()
+            { //DOM Ready
+                freeboard.setAssetRoot("/freeboard-ui/");
+                freeboard.initialize(true);
+
+                /*var JWTtokenz = 'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdHgiOnsidXNlcmlkIjoiVTkzODc4ODI5NDUyMiIsImNsaWVudGlkIjoiN' +
+                'WI0NGM0ZDRkMWMwODY5ZmE0YjNlZDkyZTFmNzgzYjgifSwic2NvcGUiOltdLCJpYXQiOjE2NjQ3ODQxNzYsIm5iZiI6MTY2NDc4NDE3NiwiZXhwIjo' +
+                'xOTgwNDAzNTQ4LCJleHBpcmVJbiI6MzE1NjE5MzcyLCJqdGkiOiJpZ21rMUVpRSIsImlzcyI6ImNlcjp1c2VydG9rZW4ifQ.wNf8zR-wYqGOW5IRs4' +
+                'EG7MzrukVer-HxSHHaXmW13LwGgA3YAxKq9uCMnhEhSjyptVgHFPjI9vTEhne15oG--A';*/
+
+                var JWTtokenz = getToken();
+
+                loadDashboard(JWTtokenz);
+
+            });
+        });
+
+        function loadDashboard(JWTtoken){
+          try {
+            let projectid;
+            document.getElementById("jwt").innerHTML = JWTtoken;
+            queryProjectid(JWTtoken).then((data) => {
+              projectid = data['data']['device']['projectid'];
+              queryFreeboardList(JWTtoken, projectid).then((data) => {
+                dashboardid = data['data']['freeboardList'][0]['dashboardid'];
+                document.getElementById("freeboardid").innerHTML = dashboardid;
+                loadFromLocalStorage(JWTtoken, dashboardid);
+              });
+            });
+          }
+          catch(err){
+            console.log(err);
+            document.getElementById("error-text").hidden = false;
+            document.getElementById("error-text").innerHTML = "Error. Cannot query dashboard's config, Please contact service provider";
+          }
+
+        }
+
+        function queryProjectid(JWTtoken){
+          try {
+            var projectid;
+            let credential = getCredentialFromURL();
+            let netpieGqlUrl = 'https://gqlv2.netpie.io';
+            let projectListCommand = 'query device {device (deviceid:"' + (credential.deviceid).toString() + '") {projectid}}';
+            return fetch(netpieGqlUrl, {
+                  method: 'POST',
+                  headers: {
+                      'Accept-Encoding': 'gzip, deflate, br',
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                      'Connection': 'keep-alive',
+                      'DNT': '1',
+                      'Origin': netpieGqlUrl,
+                      'Authorization': JWTtoken
+                  },
+                  body: JSON.stringify({
+                      'query': projectListCommand
+                  })
+              }).then((response) => {
+                  return response.json().then((data) => {
+                    return data;
+                }).catch((err) => {
+                  console.log(err);
+                })
+              });
+          }
+          catch(err){
+            console.log(err);
+            document.getElementById("error-text").hidden = false;
+            document.getElementById("error-text").innerHTML = "Error. Cannot query dashboard's config, Please contact service provider";
+          }
+        }
+
+        function queryFreeboardList(JWTtoken, projectid){
+          try {
+              var projectid;
+              let credential = getCredentialFromURL();
+              let netpieGqlUrl = 'https://gqlv2.netpie.io';
+              let dashboardListCommand = 'query freeboardList { freeboardList (filter:{projectid:"' + projectid +'"}) {dashboardid}}';
+              return fetch(netpieGqlUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Connection': 'keep-alive',
+                        'DNT': '1',
+                        'Origin': netpieGqlUrl,
+                        'Authorization': JWTtoken
+                    },
+                    body: JSON.stringify({
+                        'query': dashboardListCommand
+                    })
+                }).then((response) => {
+                    return response.json().then((data) => {
+                      return data;
+                  }).catch((err) => {
+                    console.log(err);
+                  })
+                });
+          }
+          catch(err){
+            console.log(err);
+          }
+        }
+
+        function getCredentialFromURL() {
+            if (location.hash) {
+                let a = location.hash.substring(1).split(':');
+                if (a[0] && a[1]) {
+                    return {
+                        deviceid: a[0],
+                        devicetoken: a[1],
+                    }
+                }
+            }
+            else return null;
+        }
+
+        function injectDatasource(freeboardconfig) {
+
+            let cred = getCredentialFromURL();
+            let newdatasource = [];
+            if (cred && cred.deviceid && cred.devicetoken && freeboardconfig) {
+                for (let i in freeboardconfig.datasources) {
+                    let ds = freeboardconfig.datasources[i];
+                    if (ds.name != 'dashboard') {
+                        newdatasource.push(ds);
+                    }
+                }
+                newdatasource.push({
+                    name: 'dashboard',
+                    settings: {
+                        name: 'dashboard' ,
+                        deviceid: cred.deviceid,
+                        devicetoken: cred.devicetoken
+                    },
+                    type: 'cyblion_datasource'
+                });
+                freeboardconfig.datasources = newdatasource;
+            }
+        }
+
+        function loadFromLocalStorage(JWTtoken, dashboardid) {
+            let freeboardconfig;
+            let netpieGqlUrl = 'https://gqlv2.netpie.io';
+            //let freeboardconfigtext = window.localStorage.getItem("freeboardconfig");
+
+            let dashboardListCommand = 'query freeboardConfig {freeboardConfig (dashboardid:"'+ dashboardid +'") {config}}';
+            let fetchResponse = fetch(netpieGqlUrl, {
+      					method: 'POST',
+      					headers: {
+      							'Accept-Encoding': 'gzip, deflate, br',
+      							'Content-Type': 'application/json',
+      							'Accept': 'application/json',
+      							'Connection': 'keep-alive',
+      							'DNT': '1',
+      							'Origin': netpieGqlUrl,
+      							'Authorization': JWTtoken
+      					},
+      					body: JSON.stringify({
+      							'query': dashboardListCommand
+      					})
+      			});
+
+      			fetchResponse.then(res =>
+      							res.json()).then(d => {
+      									freeboardconfigtext = d['data']['freeboardConfig']['config']
+                        if (freeboardconfigtext) {
+                            //freeboardconfig = JSON.parse(freeboardconfigtext);
+                            freeboardconfig = freeboardconfigtext;
+                        }
+                        else {
+                            freeboardconfig = {
+                                "version": 1,
+                                "allow_edit": true,
+                                "plugins": [],
+                                "panes": [],
+                                "datasources": [],
+                                "columns": 3
+                            }
+
+                        }
+                        injectDatasource(freeboardconfig);
+                        freeboard.loadDashboard(freeboardconfig, function() {
+
+                        });
+      							});
+        }
+
+        function saveToLocalStorage() {
+            let freeboardconfigtext = freeboard.serialize();
+            let freeboardconfig = JSON.stringify(freeboardconfigtext);
+            window.localStorage.setItem("freeboardconfig", freeboardconfig);
+        }
+
+        function loadFromFile() {
+            let cred = getCredentialFromURL();
+            freeboard.loadFromFile(cred);
+        }
+
+    </script>
+</head>
+<body>
+<div id="board-content">
+    <img id="dash-logo" data-bind="attr:{src: header_image}, visible:header_image()">
+    <div class="gridster responsive-column-width">
+        <div id="error-text" hidden="false">.</div>
+        <ul data-bind="grid: true">
+        </ul>
+    </div>
+</div>
+<header id="main-header" data-bind="if:allow_edit">
+    <div id="admin-bar">
+        <div id="admin-menu">
+            <div id="board-tools">
+                <h1 id="board-logo">CYBLION</h1>
+                <div id="board-actions">
+                    <ul class="board-toolbar vertical">
+                        <!--<li data-bind="click: loadDashboardFromLocalFile"><i id="full-screen-icon" class="icon-folder-open icon-white"></i><label id="full-screen">Load Freeboard</label></li>-->
+                        <li><i class="icon-download-alt icon-white"></i>
+                            <label data-bind="click: saveDashboardClicked">Save Freeboard</label>
+                            <div id="jwt" hidden></div>
+                            <div id="freeboardid" hidden></div>
+                        </li>
+                        <li id="add-pane" data-bind="click: createPane"><i class="icon-plus icon-white"></i><label>Add Pane</label></li>
+                    </ul>
+                </div>
+            </div>
+            <div id="datasources">
+                <h2 class="title" style="font-family: 'Red Hat Display', sans-serif;">DATASOURCES</h2>
+
+                <div class="datasource-list-container">
+                    <table class="table table-condensed sub-table" id="datasources-list" data-bind="if: datasources().length">
+                        <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Last Updated</th>
+                            <th>&nbsp;</th>
+                        </tr>
+                        </thead>
+                        <tbody data-bind="foreach: datasources">
+                        <tr>
+                            <td>
+                                <!--<span class="text-button datasource-name" data-bind="text: name, pluginEditor: {operation: 'edit', type: 'datasource'}"></span>-->
+                                <span class="text datasource-name" data-bind="text: name"></span>
+                            </td>
+                            <td data-bind="text: last_updated"></td>
+                            <td>
+                                <!--<ul class="board-toolbar">
+                                    <li data-bind="click: updateNow"><i class="icon-refresh icon-white"></i></li>
+                                    <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">
+                                        <i class="icon-trash icon-white"></i></li>
+                                </ul>-->
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!--<span class="text-button table-operation" data-bind="pluginEditor: {operation: 'add', type: 'datasource'}">ADD</span>-->
+            </div>
+        </div>
+    </div>
+	<div id="column-tools" class="responsive-column-width">
+		<ul class="board-toolbar left-columns">
+			<li class="column-tool add" data-bind="click: addGridColumnLeft"><span class="column-icon right"></span><i class="icon-arrow-left icon-white"></i></li>
+			<li class="column-tool sub" data-bind="click: subGridColumnLeft"><span class="column-icon left"></span><i class="icon-arrow-right icon-white"></i></li>
+		</ul>
+		<ul class="board-toolbar right-columns">
+			<li class="column-tool sub" data-bind="click: subGridColumnRight"><span class="column-icon right"></span><i class="icon-arrow-left icon-white"></i></li>
+			<li class="column-tool add" data-bind="click: addGridColumnRight"><span class="column-icon left"></span><i class="icon-arrow-right icon-white"></i></li>
+		</ul>
+	</div>
+    <div id="toggle-header" data-bind="click: toggleEditing">
+        <!--<i id="toggle-header-icon" class="icon-wrench icon-white"></i>-->
+        <span class="text-button table-operation" style="color: #07aaea";>EDIT</span></div>
+</header>
+
+<div style="display:hidden">
+    <ul data-bind="template: { name: 'pane-template', foreach: panes}">
+    </ul>
+</div>
+
+<script type="text/html" id="pane-template">
+    <li data-bind="pane: true">
+        <header>
+            <h1 data-bind="text: title"></h1>
+            <ul class="board-toolbar pane-tools">
+                <li data-bind="pluginEditor: {operation: 'add', type: 'widget'}">
+                    <i class="icon-plus icon-white"></i>
+                </li>
+                <li data-bind="pluginEditor: {operation: 'edit', type: 'pane'}">
+                    <i class="icon-wrench icon-white"></i>
+                </li>
+                <li data-bind="pluginEditor: {operation: 'delete', type: 'pane'}">
+                    <i class="icon-trash icon-white"></i>
+                </li>
+            </ul>
+        </header>
+        <section data-bind="foreach: widgets">
+            <div class="sub-section" data-bind="css: 'sub-section-height-' + height()">
+                <div class="widget" data-bind="widget: true, css:{fillsize:fillSize}"></div>
+                <div class="sub-section-tools">
+                    <ul class="board-toolbar">
+                        <!-- ko if:$parent.widgetCanMoveUp($data) -->
+                        <li data-bind="click:$parent.moveWidgetUp"><i class="icon-chevron-up icon-white"></i></li>
+                        <!-- /ko -->
+                        <!-- ko if:$parent.widgetCanMoveDown($data) -->
+                        <li data-bind="click:$parent.moveWidgetDown"><i class="icon-chevron-down icon-white"></i></li>
+                        <!-- /ko -->
+                        <li data-bind="pluginEditor: {operation: 'edit', type: 'widget'}"><i class="icon-wrench icon-white"></i></li>
+                        <li data-bind="pluginEditor: {operation: 'delete', type: 'widget'}"><i class="icon-trash icon-white"></i></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </li>
+</script>
+
+</body>
+</html>
