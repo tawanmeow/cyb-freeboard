@@ -230,7 +230,7 @@
                     ]
                 }]);
 
-                //xdddddd :)
+                //xddddddd :)
             }
             
             else if (settingName == "timestamp") {
