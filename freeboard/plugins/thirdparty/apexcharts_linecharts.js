@@ -230,9 +230,6 @@
                     ]
                 }]);
 
-
-
-                //createChart();
             }
             
             else if (settingName == "timestamp") {
